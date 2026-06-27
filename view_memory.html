@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CF 优选助手 - 记忆库看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&display=swap');
+
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface2: #1c2128;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #7d8590;
+            --accent: #58a6ff;
+            --accent2: #3fb950;
+            --accent3: #f78166;
+            --accent4: #d2a8ff;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Syne', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 32px 20px;
+        }
+
+        .container { max-width: 1280px; margin: auto; }
+
+        header {
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+            margin-bottom: 36px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 20px;
+        }
+        header h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+        header p { font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+
+        /* 上传区 */
+        .upload-box {
+            border: 1px dashed var(--border);
+            background: var(--surface);
+            padding: 48px;
+            text-align: center;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 32px;
+        }
+        .upload-box:hover { border-color: var(--accent); background: var(--surface2); }
+        .upload-box .icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .upload-box h2 { font-size: 1rem; font-weight: 600; margin-bottom: 6px; }
+        .upload-box p { font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+        input[type="file"] { display: none; }
+
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px 24px;
+        }
+        .stat-card label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-top: 6px;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: -0.02em;
+        }
+        .stat-card.green .value { color: var(--accent2); }
+        .stat-card.purple .value { color: var(--accent4); }
+        .stat-card.red .value { color: var(--accent3); }
+
+        /* 图表区 */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+        .chart-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px 24px;
+            width: 100%;
+        }
+        .chart-box h3 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        /* 关键修复：给图表限制死父级高度，防止无限膨胀 */
+        .canvas-wrapper {
+            position: relative;
+            width: 100%;
+            height: 240px; 
+        }
+
+        .tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            background: #1c2d4a;
+            color: var(--accent);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        /* 节点明细表 */
+        .table-section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin-bottom: 32px;
+        }
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .table-header h3 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-muted);
+        }
+        .table-controls { display: flex; gap: 10px; align-items: center; }
+        select, input[type="text"] {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.8rem;
+            font-family: 'JetBrains Mono', monospace;
+            outline: none;
+            cursor: pointer;
+        }
+        select:focus, input[type="text"]:focus { border-color: var(--accent); }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table { 
+            width: 100%; 
+            min-width: 700px;
+            border-collapse: collapse; 
+            font-family: 'JetBrains Mono', monospace; 
+            font-size: 0.78rem; 
+        }
+        thead th {
+            text-align: left;
+            padding: 10px 12px;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        thead th:hover { color: var(--accent); }
+        thead th .sort-icon { margin-left: 4px; opacity: 0.4; }
+        thead th.sorted .sort-icon { opacity: 1; color: var(--accent); }
+        tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+        tbody tr:last-child { border-bottom: none; }
+        tbody tr:hover { background: var(--surface2); }
+        tbody td { padding: 12px 12px; white-space: nowrap; }
+
+        .cc-badge {
+            display: inline-block;
+            background: #1c2d4a;
+            color: var(--accent);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 0.72rem;
+        }
+        .score-bar-wrap { display: flex; align-items: center; gap: 8px; }
+        .score-bar {
+            height: 4px;
+            border-radius: 2px;
+            background: var(--border);
+            width: 50px;
+            overflow: hidden;
+        }
+        .score-bar-fill { height: 100%; background: var(--accent2); border-radius: 2px; }
+        .days-chip {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            background: var(--surface2);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .days-chip.stale { color: var(--accent3); }
+
+        .hidden { display: none; }
+
+        .reload-btn {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            border-radius: 6px;
+            padding: 8px 14px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            font-family: 'JetBrains Mono', monospace;
+            transition: all 0.2s;
+        }
+        .reload-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* 📱 移动端媒体查询优化 */
+        @media (max-width: 768px) {
+            body { padding: 16px 12px; }
+            header { flex-direction: column; gap: 8px; margin-bottom: 24px; padding-bottom: 16px; }
+            
+            .upload-box { padding: 32px 16px; margin-bottom: 24px; }
+            .upload-box .icon { font-size: 2rem; margin-bottom: 8px; }
+            
+            .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px; }
+            .stat-card { padding: 16px; }
+            .stat-card .value { font-size: 1.5rem; }
+
+            .charts-grid { grid-template-columns: 1fr; gap: 16px; margin-bottom: 24px; }
+            .chart-box { padding: 16px; }
+            
+            .table-section { padding: 16px 12px; }
+            .table-controls { width: 100%; display: flex; }
+            .table-controls select, .table-controls button { flex: 1; text-align: center; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>CF 记忆库看板</h1>
+        <p>cf_memory.json · 本地解析，数据不离开设备</p>
+    </header>
+
+    <div class="upload-box" id="drop-zone">
+        <div class="icon">📡</div>
+        <h2>拖拽或点击上传 cf_memory.json</h2>
+        <p>仅展示有 CC 标记且评分 &gt; 0 的有效节点</p>
+        <input type="file" id="file-input" accept=".json">
+    </div>
+
+    <div id="main-content" class="hidden">
+        <div class="stats-grid">
+            <div class="stat-card"><label>有效节点数</label><div class="value" id="s-count">-</div></div>
+            <div class="stat-card green"><label>最高评分</label><div class="value" id="s-max">-</div></div>
+            <div class="stat-card purple"><label>平均速度</label><div class="value" id="s-speed">-</div></div>
+            <div class="stat-card"><label>平均 TTFB</label><div class="value" id="s-ttfb">-</div></div>
+            <div class="stat-card red"><label>濒临淘汰</label><div class="value" id="s-stale">-</div></div>
+            <div class="stat-card"><label>覆盖地区</label><div class="value" id="s-regions">-</div></div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-box">
+                <h3>地区分布 <span class="tag">CC 字段</span></h3>
+                <div class="canvas-wrapper"><canvas id="ccChart"></canvas></div>
+            </div>
+            <div class="chart-box">
+                <h3>性能散点 <span class="tag">评分 vs Mbps</span></h3>
+                <div class="canvas-wrapper"><canvas id="scatterChart"></canvas></div>
+            </div>
+            <div class="chart-box">
+                <h3>时段稳定性 <span class="tag">24h 采样</span></h3>
+                <div class="canvas-wrapper"><canvas id="timeChart"></canvas></div>
+            </div>
+            <div class="chart-box">
+                <h3>健康分布 <span class="tag">连续失败</span></h3>
+                <div class="canvas-wrapper"><canvas id="healthChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="table-section">
+            <div class="table-header">
+                <h3>节点明细 <span class="tag" id="table-count-tag">-</span></h3>
+                <div class="table-controls">
+                    <select id="cc-filter"><option value="">全部地区</option></select>
+                    <button class="reload-btn" id="reload-btn">↺ 重载数据</button>
+                </div>
+            </div>
+            
+            <div class="table-responsive">
+                <table id="node-table">
+                    <thead>
+                        <tr>
+                            <th data-col="ip">IP:Port <span class="sort-icon">↕</span></th>
+                            <th data-col="cc">地区 <span class="sort-icon">↕</span></th>
+                            <th data-col="avg_score" class="sorted">评分 <span class="sort-icon">↓</span></th>
+                            <th data-col="last_ttfb_ms">TTFB <span class="sort-icon">↕</span></th>
+                            <th data-col="last_mbps">速度 <span class="sort-icon">↕</span></th>
+                            <th data-col="passes">通过次数 <span class="sort-icon">↕</span></th>
+                            <th data-col="days_ago">最后见到 <span class="sort-icon">↕</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    const fileInput = document.getElementById('file-input');
+    const dropZone  = document.getElementById('drop-zone');
+    const content   = document.getElementById('main-content');
+    const ccFilter  = document.getElementById('cc-filter');
+    const reloadBtn = document.getElementById('reload-btn');
+
+    let allNodes = [];
+    let sortCol  = 'avg_score';
+    let sortAsc  = false;
+    const charts = {};
+
+    dropZone.onclick = () => { fileInput.value = ''; fileInput.click(); };
+    fileInput.onchange = e => { if (e.target.files[0]) readFile(e.target.files[0]); };
+    dropZone.ondragover  = e => { e.preventDefault(); dropZone.style.borderColor = 'var(--accent)'; };
+    dropZone.ondragleave = () => { dropZone.style.borderColor = ''; };
+    dropZone.ondrop = e => {
+        e.preventDefault();
+        dropZone.style.borderColor = '';
+        if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+    };
+    reloadBtn.onclick = () => { fileInput.value = ''; fileInput.click(); };
+
+    function readFile(file) {
+        const reader = new FileReader();
+        reader.onload = ev => {
+            try {
+                handleData(JSON.parse(ev.target.result));
+            } catch (err) {
+                alert('解析 JSON 失败，请检查文件格式。');
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function handleData(raw) {
+        const now = Date.now() / 1000;
+        allNodes = Object.entries(raw)
+            .map(([key, rec]) => ({ ...rec, _key: key, days_ago: (now - (rec.last_seen || 0)) / 86400 }))
+            .filter(i => i.cc && i.cc !== '' && i.avg_score > 0);
+
+        if (allNodes.length === 0) {
+            alert('该记忆库中尚未包含已识别国家/地区的有效测速数据。');
+            return;
+        }
+
+        content.classList.remove('hidden');
+        dropZone.style.padding = window.innerWidth <= 768 ? '16px' : '24px 16px';
+        dropZone.querySelector('h2').style.display = 'none';
+        dropZone.querySelector('p').innerText = '点击重新上传文件';
+
+        const maxScore  = allNodes.reduce((max, node) => Math.max(max, node.avg_score || 0), 0);
+        const avgMbps   = allNodes.reduce((a, b) => a + (b.last_mbps || 0), 0) / allNodes.length;
+        const avgTtfb   = allNodes.reduce((a, b) => a + (b.last_ttfb_ms || 0), 0) / allNodes.length;
+        const staleCount = allNodes.filter(i => (i.fail_streak || 0) >= 3).length;
+        const regions   = new Set(allNodes.map(i => i.cc)).size;
+
+        document.getElementById('s-count').innerText  = allNodes.length;
+        document.getElementById('s-max').innerText    = maxScore.toFixed(1);
+        document.getElementById('s-speed').innerText  = avgMbps.toFixed(1) + ' Mbps';
+        document.getElementById('s-ttfb').innerText   = avgTtfb.toFixed(0) + ' ms';
+        document.getElementById('s-stale').innerText  = staleCount;
+        document.getElementById('s-regions').innerText = regions;
+
+        const ccList = [...new Set(allNodes.map(i => i.cc))].sort();
+        ccFilter.innerHTML = '<option value="">全部地区</option>';
+        ccList.forEach(cc => {
+            const opt = document.createElement('option');
+            opt.value = opt.text = cc;
+            ccFilter.appendChild(opt);
+        });
+        ccFilter.onchange = () => renderTable();
+
+        drawCharts(allNodes);
+
+        document.querySelectorAll('#node-table thead th[data-col]').forEach(th => {
+            th.onclick = () => {
+                const col = th.dataset.col;
+                if (sortCol === col) sortAsc = !sortAsc;
+                else { sortCol = col; sortAsc = false; }
+                
+                document.querySelectorAll('thead th').forEach(t => {
+                    t.classList.remove('sorted');
+                    t.querySelector('.sort-icon').textContent = '↕';
+                });
+                
+                th.classList.add('sorted');
+                th.querySelector('.sort-icon').textContent = sortAsc ? '↑' : '↓';
+                renderTable();
+            };
+        });
+
+        renderTable();
+    }
+
+    function renderTable() {
+        const cc = ccFilter.value;
+        let rows = cc ? allNodes.filter(i => i.cc === cc) : [...allNodes];
+
+        rows.sort((a, b) => {
+            const va = sortCol === 'ip' ? a._key : (a[sortCol] ?? 0);
+            const vb = sortCol === 'ip' ? b._key : (b[sortCol] ?? 0);
+            if (typeof va === 'string' || typeof vb === 'string') {
+                return sortAsc ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+            }
+            return sortAsc ? va - vb : vb - va;
+        });
+
+        document.getElementById('table-count-tag').innerText = `${rows.length} 节点`;
+        const tbody = document.getElementById('table-body');
+        
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 30px; color: var(--text-muted);">暂无符合条件的节点</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = rows.slice(0, 200).map(n => {
+            const daysAgo = n.days_ago;
+            const stale = daysAgo > 7;
+            const scoreBarWidth = Math.min(100, n.avg_score).toFixed(0);
+            return `<tr>
+                <td style="color:var(--text)">${n._key}</td>
+                <td><span class="cc-badge">${n.cc}</span></td>
+                <td>
+                    <div class="score-bar-wrap">
+                        <span>${n.avg_score.toFixed(1)}</span>
+                        <div class="score-bar"><div class="score-bar-fill" style="width:${scoreBarWidth}%"></div></div>
+                    </div>
+                </td>
+                <td>${n.last_ttfb_ms != null ? n.last_ttfb_ms.toFixed(0) + ' ms' : '-'}</td>
+                <td>${n.last_mbps != null ? n.last_mbps.toFixed(1) + ' Mbps' : '-'}</td>
+                <td>${n.passes || 0} / ${n.runs || 0}</td>
+                <td><span class="days-chip ${stale ? 'stale' : ''}">${daysAgo < 1 ? '今天' : daysAgo.toFixed(1) + ' 天前'}</span></td>
+            </tr>`;
+        }).join('');
+    }
+
+    function drawCharts(data) {
+        ['ccChart', 'scatterChart', 'timeChart', 'healthChart'].forEach(id => {
+            if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+        });
+
+        const isMobile = window.innerWidth <= 768;
+        const legendPos = isMobile ? 'bottom' : 'right';
+
+        // 1. 地区分布
+        const ccMap = {};
+        data.forEach(i => ccMap[i.cc] = (ccMap[i.cc] || 0) + 1);
+        const sortedCC = Object.entries(ccMap).sort((a, b) => b[1] - a[1]);
+        const COLORS = ['#58a6ff','#3fb950','#f78166','#d2a8ff','#ffa657','#79c0ff','#56d364','#ff7b72'];
+        charts['ccChart'] = new Chart(document.getElementById('ccChart'), {
+            type: 'doughnut',
+            data: {
+                labels: sortedCC.map(e => e[0]),
+                datasets: [{ 
+                    data: sortedCC.map(e => e[1]), 
+                    backgroundColor: sortedCC.map((_, idx) => COLORS[idx % COLORS.length]), 
+                    borderWidth: 0 
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: legendPos, labels: { boxWidth: 12, color: '#7d8590', font: { family: 'JetBrains Mono', size: 10 } } }
+                }
+            }
+        });
+
+        // 2. 性能散点
+        const scatterData = data.map(i => ({ x: parseFloat(i.avg_score.toFixed(1)), y: parseFloat((i.last_mbps || 0).toFixed(1)), ip: i._key }));
+        charts['scatterChart'] = new Chart(document.getElementById('scatterChart'), {
+            type: 'scatter',
+            data: { datasets: [{ label: 'IP 样本', data: scatterData, backgroundColor: 'rgba(88,166,255,0.5)', pointRadius: 3 }] },
+            options: {
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: { callbacks: { label: ctx => `${ctx.raw.ip} | 评分:${ctx.raw.x} | ${ctx.raw.y} Mbps` } },
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { title: { display: true, text: '综合评分', color: '#7d8590', font: {size: 10} }, ticks: { color: '#7d8590', font: {size: 10} }, grid: { color: '#21262d' } },
+                    y: { title: { display: true, text: 'Mbps', color: '#7d8590', font: {size: 10} }, ticks: { color: '#7d8590', font: {size: 10} }, grid: { color: '#21262d' } }
+                }
+            }
+        });
+
+        // 3. 时段分析
+        const bucketScores  = [0, 0, 0, 0];
+        const bucketCounts  = [0, 0, 0, 0];
+        data.forEach(i => {
+            if (i.stage_scores) {
+                Object.entries(i.stage_scores).forEach(([b, s]) => {
+                    const idx = parseInt(b);
+                    if (s.length > 0 && idx >= 0 && idx < 4) {
+                        bucketScores[idx] += s.reduce((a, c) => a + c, 0) / s.length;
+                        bucketCounts[idx]++;
+                    }
+                });
+            }
+        });
+        charts['timeChart'] = new Chart(document.getElementById('timeChart'), {
+            type: 'line',
+            data: {
+                labels: ['0-6时', '6-12时', '12-18时', '18-24时'],
+                datasets: [{
+                    label: '平均评分',
+                    data: bucketScores.map((v, i) => bucketCounts[i] > 0 ? parseFloat((v / bucketCounts[i]).toFixed(2)) : null),
+                    fill: true,
+                    borderColor: '#3fb950',
+                    backgroundColor: 'rgba(63,185,80,0.1)',
+                    tension: 0.4,
+                    spanGaps: true
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#7d8590', font: {size: 10} }, grid: { color: '#21262d' } },
+                    y: { ticks: { color: '#7d8590', font: {size: 10} }, grid: { color: '#21262d' } }
+                }
+            }
+        });
+
+        // 4. 健康度
+        const health = [0, 0, 0, 0];
+        data.forEach(i => health[Math.min(i.fail_streak || 0, 3)]++);
+        charts['healthChart'] = new Chart(document.getElementById('healthChart'), {
+            type: 'bar',
+            data: {
+                labels: ['稳定(0)', '波动(1)', '失联(2)', '濒危(3+)'],
+                datasets: [{ data: health, backgroundColor: ['#3fb950','#ffa657','#f78166','#ff4444'], borderRadius: 4, borderWidth: 0 }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#7d8590', font: {size: 10} }, grid: { display: false } },
+                    y: { ticks: { color: '#7d8590', font: {size: 10} }, grid: { color: '#21262d' } }
+                }
+            }
+        });
+    }
+</script>
+</body>
+</html>
