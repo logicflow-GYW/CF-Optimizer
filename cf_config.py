@@ -97,8 +97,8 @@ RANGE_CHECK_HOST   = "speed.cloudflare.com"  # ← 用稳定的 speed 域名代�
 #  Worker 推送与消息通知 (可选)
 # ────────────────────────────────────────────────
 WORKER_ENABLE   = True
-WORKER_HOST     = os.environ.get("CF_WORKER_HOST", "https://your-worker.example.com")
-WORKER_PASSWORD = os.environ.get("CF_WORKER_PASSWORD", "")
+WORKER_HOST     = os.environ.get("CF_WORKER_HOST", "https://rhvfjvfhgg.com")
+WORKER_PASSWORD = os.environ.get("CF_WORKER_PASSWORD", "12345678")
 
 NOTIFY_WEBHOOK_URL = os.environ.get("CF_WEBHOOK_URL", "")
 NOTIFY_TG_TOKEN   = os.environ.get("CF_TG_TOKEN", "")
