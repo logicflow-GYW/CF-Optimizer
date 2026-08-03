@@ -354,6 +354,7 @@
     const reloadBtn = document.getElementById('reload-btn');
 
     let allNodes = [];
+    let rawNodes = [];
     let sortCol  = 'avg_score';
     let sortAsc  = false;
     const charts = {};
@@ -384,11 +385,12 @@
     function handleData(raw) {
         const now = Date.now() / 1000;
         allNodes = Object.entries(raw)
-            .map(([key, rec]) => ({ ...rec, _key: key, days_ago: (now - (rec.last_seen || 0)) / 86400 }))
-            .filter(i => i.cc && i.cc !== '' && i.avg_score > 0);
+            .map(([key, rec]) => ({ ...rec, _key: key, days_ago: (now - (rec.last_seen || 0)) / 86400 }));
+
+        const validNodes = allNodes.filter(i => i.cc && i.cc !== '' && i.avg_score > 0);
 
         if (allNodes.length === 0) {
-            alert('该记忆库中尚未包含已识别国家/地区的有效测速数据。');
+            alert('该记忆库中尚未包含任何有效节点数据。');
             return;
         }
 
@@ -397,20 +399,20 @@
         dropZone.querySelector('h2').style.display = 'none';
         dropZone.querySelector('p').innerText = '点击重新上传文件';
 
-        const maxScore  = allNodes.reduce((max, node) => Math.max(max, node.avg_score || 0), 0);
-        const avgMbps   = allNodes.reduce((a, b) => a + (b.last_mbps || 0), 0) / allNodes.length;
-        const avgTtfb   = allNodes.reduce((a, b) => a + (b.last_ttfb_ms || 0), 0) / allNodes.length;
+        const maxScore  = validNodes.reduce((max, node) => Math.max(max, node.avg_score || 0), 0);
+        const avgMbps   = validNodes.length > 0 ? validNodes.reduce((a, b) => a + (b.last_mbps || 0), 0) / validNodes.length : 0;
+        const avgTtfb   = validNodes.length > 0 ? validNodes.reduce((a, b) => a + (b.last_ttfb_ms || 0), 0) / validNodes.length : 0;
         const staleCount = allNodes.filter(i => (i.fail_streak || 0) >= 3).length;
-        const regions   = new Set(allNodes.map(i => i.cc)).size;
+        const regions   = new Set(validNodes.map(i => i.cc)).size;
 
-        document.getElementById('s-count').innerText  = allNodes.length;
+        document.getElementById('s-count').innerText  = `${validNodes.length} / ${allNodes.length}`;
         document.getElementById('s-max').innerText    = maxScore.toFixed(1);
         document.getElementById('s-speed').innerText  = avgMbps.toFixed(1) + ' Mbps';
         document.getElementById('s-ttfb').innerText   = avgTtfb.toFixed(0) + ' ms';
         document.getElementById('s-stale').innerText  = staleCount;
         document.getElementById('s-regions').innerText = regions;
 
-        const ccList = [...new Set(allNodes.map(i => i.cc))].sort();
+        const ccList = [...new Set(validNodes.map(i => i.cc))].sort();
         ccFilter.innerHTML = '<option value="">全部地区</option>';
         ccList.forEach(cc => {
             const opt = document.createElement('option');
@@ -443,7 +445,8 @@
 
     function renderTable() {
         const cc = ccFilter.value;
-        let rows = cc ? allNodes.filter(i => i.cc === cc) : [...allNodes];
+        const validNodes = allNodes.filter(i => i.cc && i.cc !== '' && i.avg_score > 0);
+        let rows = cc ? validNodes.filter(i => i.cc === cc) : [...validNodes];
 
         rows.sort((a, b) => {
             const va = sortCol === 'ip' ? a._key : (a[sortCol] ?? 0);
@@ -491,9 +494,11 @@
         const isMobile = window.innerWidth <= 768;
         const legendPos = isMobile ? 'bottom' : 'right';
 
+        const validData = data.filter(i => i.cc && i.cc !== '' && i.avg_score > 0);
+
         // 1. 地区分布
         const ccMap = {};
-        data.forEach(i => ccMap[i.cc] = (ccMap[i.cc] || 0) + 1);
+        validData.forEach(i => ccMap[i.cc] = (ccMap[i.cc] || 0) + 1);
         const sortedCC = Object.entries(ccMap).sort((a, b) => b[1] - a[1]);
         const COLORS = ['#58a6ff','#3fb950','#f78166','#d2a8ff','#ffa657','#79c0ff','#56d364','#ff7b72'];
         charts['ccChart'] = new Chart(document.getElementById('ccChart'), {
@@ -515,7 +520,7 @@
         });
 
         // 2. 性能散点
-        const scatterData = data.map(i => ({ x: parseFloat(i.avg_score.toFixed(1)), y: parseFloat((i.last_mbps || 0).toFixed(1)), ip: i._key }));
+        const scatterData = validData.map(i => ({ x: parseFloat(i.avg_score.toFixed(1)), y: parseFloat((i.last_mbps || 0).toFixed(1)), ip: i._key }));
         charts['scatterChart'] = new Chart(document.getElementById('scatterChart'), {
             type: 'scatter',
             data: { datasets: [{ label: 'IP 样本', data: scatterData, backgroundColor: 'rgba(88,166,255,0.5)', pointRadius: 3 }] },
@@ -535,7 +540,7 @@
         // 3. 时段分析
         const bucketScores  = [0, 0, 0, 0];
         const bucketCounts  = [0, 0, 0, 0];
-        data.forEach(i => {
+        validData.forEach(i => {
             if (i.stage_scores) {
                 Object.entries(i.stage_scores).forEach(([b, s]) => {
                     const idx = parseInt(b);
@@ -570,7 +575,7 @@
             }
         });
 
-        // 4. 健康度
+        // 4. 健康度 (使用完整数据 data 统计全部失联或健康节点)
         const health = [0, 0, 0, 0];
         data.forEach(i => health[Math.min(i.fail_streak || 0, 3)]++);
         charts['healthChart'] = new Chart(document.getElementById('healthChart'), {
@@ -589,6 +594,8 @@
             }
         });
     }
+
+    // 移除了冲突的 window resize 监听器，直接依赖 Chart.js 内部优化的自适应逻辑
 </script>
 </body>
 </html>

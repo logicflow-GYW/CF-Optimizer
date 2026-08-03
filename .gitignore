@@ -4,3 +4,4 @@ Logs/
 __pycache__/
 *.pyc
 .DS_Store
+custom_add.txt

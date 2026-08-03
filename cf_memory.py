@@ -1,5 +1,5 @@
 """
-CF优选助手 - 智能记忆模块 v4
+CF优选助手 - 智能记忆模块 v4.4
 v4.2 改动：删除 VIP 地区加权（target_ccs 参数）
 
 优化内容：
@@ -91,11 +91,12 @@ def record_result(db: dict, ip: str, port: int, cc: str,
         "last_range_ok": False, "avg_score": 0.0, "stage_scores": {}, "tcp_hits": 0,
     })
 
-    rec["cc"] = cc
+    if cc:
+        rec["cc"] = cc
     rec["last_seen"] = now
-    rec["runs"] += 1
 
     if stage in ("full", "ttfb") and passed:
+        rec["runs"] += 1
         rec["passes"] += 1
         rec["fail_streak"] = 0
         rec["last_score"] = score
@@ -109,7 +110,12 @@ def record_result(db: dict, ip: str, port: int, cc: str,
         rec["stage_scores"][bucket_key] = bucket_scores[-10:]
     elif stage == "tcp":
         rec["tcp_hits"] = rec.get("tcp_hits", 0) + 1
+        rec["fail_streak"] = 0
+    elif stage == "trace":
+        rec["tcp_hits"] = rec.get("tcp_hits", 0) + 1
+        rec["fail_streak"] = 0
     elif stage == "fail":
+        rec["runs"] += 1
         rec["fail_streak"] = rec.get("fail_streak", 0) + 1
 
     db[key] = rec
@@ -197,9 +203,9 @@ def get_cidr_weights(db: dict, cidr_list: list) -> list:
         except ValueError:
             continue
 
-        # 找最后一个 start <= ip_int 的位置，向左回溯直到不再满足条件
+        # 找最后一个 start <= ip_int 的位置，由于 CF 网段不重叠，只需检查该网段即可
         idx = bisect.bisect_right(starts, ip_int) - 1
-        while idx >= 0:
+        if idx >= 0:
             start, end, cidr, _ = valid_nets[idx]
             if ip_int <= end:
                 cidr_stats[cidr]["total"] += 1
@@ -207,8 +213,6 @@ def get_cidr_weights(db: dict, cidr_list: list) -> list:
                     cidr_stats[cidr]["passes"] += 1
                 if rec.get("stage_scores", {}).get(current_bucket):
                     cidr_stats[cidr]["time_passes"] += 1
-                break  # CF 网段不重叠，命中即停
-            idx -= 1
 
     # 结算权重（已删除无效的 base_weight = 100.0 死代码）
     weights = []
