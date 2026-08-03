@@ -225,63 +225,7 @@ SCORE_BW_WEIGHT        = 0.4
 SCORE_MAX_TTFB_MS      = 800.0
 SCORE_MAX_BPS          = 150.0
 
-# ================================================
-#  自动调优 (Auto-Tuning) 统一配置  [v4.6 新增]
-# ================================================
-AUTOTUNE_ENABLE        = True    # 总开关，False 全走静态值
-AUTOTUNE_EMA_ALPHA     = 0.35    # EMA 新值权重，越小越稳
-AUTOTUNE_DEADZONE      = 0.12    # 相对变化小于此不写回，防抖
-AUTOTUNE_HISTORY_MAX   = 20      # 保留最近多少条调节历史
 
-# — 网络健康度权重（存活/延迟/抖动）——
-HEALTH_W_SURVIVAL      = 0.45
-HEALTH_W_LATENCY       = 0.35
-HEALTH_W_JITTER        = 0.20
-
-# — TCP 存活率阈值 ——
-TCP_SURVIVAL_LOW       = 0.08
-TCP_SURVIVAL_HIGH      = 0.20
-TCP_WORKERS_STEP       = 30
-
-# — TCP 超时自适应 ——
-TCP_TIMEOUT_AUTO       = True
-TCP_TIMEOUT_MIN        = 0.6
-TCP_TIMEOUT_MAX        = 2.0
-TCP_TIMEOUT_PCTL       = 0.95
-TCP_TIMEOUT_FACTOR     = 2.0
-
-# — Trace / TTFB 并发随健康度联动 ——
-DYNAMIC_WORKERS_AUTO   = True
-TRACE_WORKERS_MIN      = 50
-TRACE_WORKERS_MAX      = 150
-TTFB_WORKERS_MIN       = 25
-TTFB_WORKERS_MAX       = 80
-
-# — TTFB 池闸门自适应 ——
-TTFB_POOL_AUTO         = True
-TTFB_POOL_MIN          = 50
-TTFB_POOL_MAX          = 120
-
-# — TTFB_MAX 升降边界 ——
-TTFB_MAX_FLOOR         = 0.70
-TTFB_MAX_CEIL          = 2.50
-
-# — 任务量趋势阈值 ——
-TASK_LIMIT_MIN         = 1500
-TASK_LIMIT_MAX         = 5000
-TTFB_TOP10_GOOD_MS     = 180     # Top10 均延迟低于此算"过剩"
-TTFB_TOP10_POOR_MS     = 250     # 高于此算"头部欠佳"
-TASK_LIMIT_TREND_N     = 2       # 连续 N 轮同向才动 MAX_TASK_LIMIT
-
-# — jitter 阈值 ——
-TTFB_JITTER_LIMIT      = 0.20
-TTFB_JITTER_MAX        = 0.25    # 过关率过低时最多放宽到此
-
-# — 评分常量 ——
-SCORE_TTFB_WEIGHT      = 0.6
-SCORE_BW_WEIGHT        = 0.4
-SCORE_MAX_TTFB_MS      = 800.0
-SCORE_MAX_BPS          = 150.0
 
 # ============================================================
 #  自动化网络爬虫模块：全自动获取最新源 (通讯录模式)
