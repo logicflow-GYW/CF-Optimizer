@@ -27,6 +27,7 @@ DECAY_DAYS      = 7     # 超过此天数未见 → avg_score 开始衰减
 MAX_FAIL_STREAK = 3     # 连续失败超过此次数 → 移出优先候选
 MEMORY_MAX_SIZE = 5000  # 记忆库最多保留条目数（按置信度淘汰）
 HOUR_BUCKETS    = 4     # 将24小时分成几段（4 = 每6小时一段）
+MEMORY_FUSE_MIN_RUNS      = 2     # get_node_confidence 使用（同名参数，勿删）
 
 
 def _hour_bucket() -> int:
@@ -231,6 +232,25 @@ def get_cidr_weights(db: dict, cidr_list: list) -> list:
             weights.append(base_weight)
 
     return weights
+
+
+def get_node_confidence(db: dict, ip: str, port: int) -> float:
+    """取单节点记忆库置信度（0~100），用于最终推送融合排序。
+    - 无记录 / passes 不足 → 返回 None（调用方按纯本轮分处理）
+    - 置信度 = avg_score × 衰减系数 × (passes>=MIN_RUNS ? 1 : None)
+    """
+    rec = db.get(f"{ip}:{port}")
+    if not rec:
+        return None
+    passes = rec.get("passes", 0)
+    if passes < MEMORY_FUSE_MIN_RUNS:
+        return None
+    now = time.time()
+    days_ago = (now - rec.get("last_seen", 0)) / 86400
+    freshness = max(0.0, 1.0 - days_ago / STALE_DAYS)
+    if freshness <= 0:
+        return None
+    return rec.get("avg_score", 0.0) * freshness
 
 
 def prune_stale(db: dict) -> int:
